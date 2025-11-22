@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { 
@@ -64,6 +63,7 @@ interface AppData {
   companyGst: string;
   companyPhone: string;
   companyEmail: string;
+  termsAndConditions: string; // Added customizable terms
 }
 
 // --- Mock Data & Initial State ---
@@ -85,11 +85,12 @@ const INITIAL_DATA: AppData = {
     { id: 'V003', date: '2024-04-05', type: 'Sales', ledgerId: '5', amount: 45000, narration: 'Sold 5 Laptops', invoiceNumber: 'NAC-001' },
     { id: 'V004', date: '2024-04-06', type: 'Payment', ledgerId: '7', amount: 12000, narration: 'Office Rent Paid via Cash' },
   ],
-  companyName: 'New Age Computers',
+  companyName: 'My Company Name', // Generic Default
   companyAddress: 'Shop 12, Digital Plaza, Mumbai, 400001',
   companyGst: '27AACCN1234P1Z5',
-  companyPhone: '9920524542',
-  companyEmail: 'support@newagecomputers.com'
+  companyPhone: '9876543210',
+  companyEmail: 'support@mycompany.com',
+  termsAndConditions: "1. Goods once sold will not be taken back.\n2. Interest @18% p.a. will be charged if payment is not made within due date.\n3. Subject to Mumbai Jurisdiction."
 };
 
 // --- Helper Functions ---
@@ -102,6 +103,10 @@ const formatCurrency = (amount: number) => {
     currency: 'INR',
     maximumFractionDigits: 2
   }).format(amount);
+};
+
+const getInitials = (name: string) => {
+  return name ? name.substring(0, 2).toUpperCase() : 'CO';
 };
 
 // --- Components ---
@@ -229,10 +234,6 @@ const LicenseGate = ({
           Activate & Login
         </button>
 
-        {/* HIDDEN FOR PRODUCTION: Demo Key Helper removed so clients don't see it. 
-            Admin can still use NAC-DEMO-2025-TEST
-        */}
-        
         <div className="mt-8 pt-6 border-t border-gray-100 text-xs text-gray-400">
           <p>Licensed by <span className="font-bold text-gray-600">New Age Computers</span></p>
           <p>Support: 9920524542 / 9323815956</p>
@@ -321,7 +322,6 @@ const AccountingApp = () => {
       xml += `      </ALLLEDGERENTRIES.LIST>\n`;
 
       // Contra Ledger Entry (Cash/Bank/Sales/Purchase Account)
-      // In a real double entry system, this would be explicit. Here we infer for simplicity.
       let contraLedger = 'Cash Account'; // Default fallback
       if (v.type === 'Sales') contraLedger = 'Sales Account';
       if (v.type === 'Purchase') contraLedger = 'Purchase Account';
@@ -355,7 +355,6 @@ const AccountingApp = () => {
     const totalReceipts = data.vouchers.filter(v => v.type === 'Receipt').reduce((sum, v) => sum + v.amount, 0);
     const totalPayments = data.vouchers.filter(v => v.type === 'Payment').reduce((sum, v) => sum + v.amount, 0);
     
-    // Simple Cash Balance Calc (Opening + Receipts - Payments)
     const cashLedger = data.ledgers.find(l => l.group === 'Cash');
     const cashBalance = (cashLedger?.openingBalance || 0) + totalReceipts - totalPayments;
 
@@ -641,7 +640,6 @@ const AccountingApp = () => {
         setAmount('');
         setNarration('');
         setInvoiceNo('');
-        // alert('Voucher Saved!'); // Removed annoying alert
       }
     };
 
@@ -797,10 +795,6 @@ const AccountingApp = () => {
                             // This is a simplified simulation.
                             let net = l.openingBalance + debits - credits;
                             
-                            // Determine Dr or Cr based on Group roughly
-                            const isCreditNature = ['Liability', 'Income', 'Sundry Creditor'].includes(l.group);
-                            // Adjusting sign for display
-                            
                             if (net === 0) return null;
 
                             return (
@@ -916,9 +910,9 @@ const AccountingApp = () => {
           {/* Header */}
           <div className="flex justify-between border-b-2 border-orange-500 pb-6 mb-8">
              <div className="flex items-start gap-4">
-                {/* Logo Placeholder */}
-                <div className="w-16 h-16 bg-orange-500 text-white flex items-center justify-center font-bold text-2xl rounded-lg">
-                    NAC
+                {/* Dynamic Logo based on Company Name */}
+                <div className="w-16 h-16 bg-orange-500 text-white flex items-center justify-center font-bold text-2xl rounded-lg uppercase">
+                    {getInitials(data.companyName)}
                 </div>
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">{data.companyName}</h1>
@@ -1070,11 +1064,10 @@ const AccountingApp = () => {
           </div>
           
           <div className="mt-16 pt-6 border-t border-gray-200 flex justify-between items-end">
-             <div className="text-xs text-gray-400 w-1/2">
+             {/* Dynamic Terms & Conditions */}
+             <div className="text-xs text-gray-400 w-1/2 whitespace-pre-wrap">
                 <p className="font-bold text-gray-600 mb-1">Terms & Conditions:</p>
-                <p>1. Goods once sold will not be taken back.</p>
-                <p>2. Interest @18% p.a. will be charged if payment is not made within due date.</p>
-                <p>3. Subject to Mumbai Jurisdiction.</p>
+                {data.termsAndConditions}
              </div>
              <div className="text-center">
                 <div className="h-16 w-32 mb-2 border-b border-dashed border-gray-400"></div>
@@ -1231,6 +1224,15 @@ const AccountingApp = () => {
                               onChange={e => updateCompanySettings({companyGst: e.target.value})}
                           />
                       </div>
+                      <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase mt-4">Invoice Terms & Conditions</label>
+                          <textarea 
+                              className="w-full border border-gray-200 rounded p-2 focus:border-orange-500 outline-none text-xs text-gray-600"
+                              rows={4}
+                              value={data.termsAndConditions}
+                              onChange={e => updateCompanySettings({termsAndConditions: e.target.value})}
+                          />
+                      </div>
                   </div>
               </div>
 
@@ -1357,8 +1359,8 @@ const AccountingApp = () => {
                <p className="text-sm font-bold text-gray-800">{data.companyName}</p>
                <p className="text-xs text-gray-500">FY 2024-2025</p>
              </div>
-             <div className="h-10 w-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold border-2 border-white shadow-md text-lg">
-               {data.companyName.charAt(0)}
+             <div className="h-10 w-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold border-2 border-white shadow-md text-lg uppercase">
+               {getInitials(data.companyName)}
              </div>
            </div>
         </header>
