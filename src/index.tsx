@@ -24,7 +24,9 @@ import {
   Database,
   ShieldCheck,
   Briefcase,
-  ArrowRightLeft
+  ArrowRightLeft,
+  History,
+  Eye
 } from 'lucide-react';
 
 // --- Types & Interfaces ---
@@ -50,6 +52,29 @@ interface Voucher {
   invoiceNumber?: string; 
 }
 
+interface InvoiceItem {
+  desc: string;
+  hsn: string;
+  qty: number;
+  rate: number;
+  gstRate: number;
+}
+
+interface Invoice {
+  id: string;
+  invoiceNo: string;
+  date: string;
+  customerName: string;
+  customerAddress: string;
+  gst: string;
+  ledgerId?: string; // Link to accounting ledger
+  items: InvoiceItem[];
+  taxType: 'local' | 'inter';
+  subtotal: number;
+  totalTax: number;
+  grandTotal: number;
+}
+
 interface License {
   key: string;
   clientName: string;
@@ -61,6 +86,7 @@ interface License {
 interface AppData {
   ledgers: Ledger[];
   vouchers: Voucher[];
+  invoices: Invoice[];
   companyName: string;
   companyAddress: string;
   companyGst: string;
@@ -88,6 +114,7 @@ const INITIAL_DATA: AppData = {
     { id: 'V003', date: '2024-04-05', type: 'Sales', ledgerId: '5', amount: 45000, narration: 'Sold 5 Laptops', invoiceNumber: 'NAC-001' },
     { id: 'V004', date: '2024-04-06', type: 'Payment', ledgerId: '7', amount: 12000, narration: 'Office Rent Paid via Cash' },
   ],
+  invoices: [],
   companyName: 'My Business Name',
   companyAddress: 'Shop No 1, Market Road, Mumbai',
   companyGst: '27AAAAA0000A1Z5',
@@ -648,9 +675,12 @@ const ReportView: React.FC<ViewProps> = ({ data }) => {
   );
 };
 
-const InvoiceView: React.FC<ViewProps> = ({ data }) => {
+const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
+  const [mode, setMode] = useState<'create' | 'history'>('create');
+  
   // State for Invoice Items and Tax Configuration
-  const [invoiceData, setInvoiceData] = useState({
+  const [invoiceData, setInvoiceData] = useState<Invoice>({
+     id: generateId(),
      customerName: '',
      customerAddress: '',
      gst: '',
@@ -660,8 +690,25 @@ const InvoiceView: React.FC<ViewProps> = ({ data }) => {
        { desc: 'Logitech Wireless Mouse', hsn: '8471', qty: 2, rate: 650, gstRate: 18 }
       ],
      date: new Date().toISOString().split('T')[0],
-     taxType: 'local' as 'local' | 'inter' // local = CGST+SGST, inter = IGST
+     taxType: 'local',
+     ledgerId: '',
+     subtotal: 0,
+     totalTax: 0,
+     grandTotal: 0
   });
+
+  // Recalculate totals whenever items/type change
+  useEffect(() => {
+    let sub = 0;
+    let tax = 0;
+    invoiceData.items.forEach(item => {
+       const itemAmount = item.qty * item.rate;
+       const taxAmount = (itemAmount * item.gstRate) / 100;
+       sub += itemAmount;
+       tax += taxAmount;
+    });
+    setInvoiceData(prev => ({...prev, subtotal: sub, totalTax: tax, grandTotal: sub + tax}));
+  }, [invoiceData.items, invoiceData.taxType]);
 
   const addItem = () => {
       setInvoiceData({...invoiceData, items: [...invoiceData.items, { desc: '', hsn: '', qty: 1, rate: 0, gstRate: 18 }]});
@@ -677,34 +724,127 @@ const InvoiceView: React.FC<ViewProps> = ({ data }) => {
     window.print();
   };
 
-  // Dynamic Tax Calculation
-  const calculateTotals = () => {
-    let subtotal = 0;
-    let totalTax = 0;
+  const saveAndPost = () => {
+    // 1. Validate
+    if (!invoiceData.customerName) { alert('Please enter Customer Name'); return; }
+    
+    // 2. Add to Invoices List
+    const newInvoices = [...(data.invoices || []), invoiceData];
+    
+    // 3. Post to Accounting (Voucher)
+    // If ledgerId is selected, use it. If not, use a generic "Sales Account" (ID 3) or "Cash" (ID 1). 
+    // Here we default to "Sales Account" to record the income, but normally we debit Party/Cash.
+    // Logic: Debit Party (ledgerId) / Credit Sales.
+    // The Voucher system here is simplified single-line.
+    const voucherLedgerId = invoiceData.ledgerId || '1'; // Default to Cash Account if no party selected
 
-    invoiceData.items.forEach(item => {
-       const itemAmount = item.qty * item.rate;
-       const taxAmount = (itemAmount * item.gstRate) / 100;
-       subtotal += itemAmount;
-       totalTax += taxAmount;
+    const newVoucher: Voucher = {
+      id: generateId(),
+      date: invoiceData.date,
+      type: 'Sales',
+      ledgerId: voucherLedgerId,
+      amount: invoiceData.grandTotal,
+      narration: `Invoice #${invoiceData.invoiceNo} - ${invoiceData.customerName}`,
+      invoiceNumber: invoiceData.invoiceNo
+    };
+
+    setData(prev => ({
+      ...prev,
+      invoices: newInvoices,
+      vouchers: [...prev.vouchers, newVoucher]
+    }));
+
+    alert('Invoice Saved and Posted to Day Book!');
+    // Reset
+    setInvoiceData({
+      id: generateId(),
+      customerName: '',
+      customerAddress: '',
+      gst: '',
+      invoiceNo: `INV-${Math.floor(Math.random() * 1000)}`,
+      items: [{ desc: '', hsn: '', qty: 1, rate: 0, gstRate: 18 }],
+      date: new Date().toISOString().split('T')[0],
+      taxType: 'local',
+      ledgerId: '',
+      subtotal: 0,
+      totalTax: 0,
+      grandTotal: 0
     });
+  };
 
-    return { subtotal, totalTax, grandTotal: subtotal + totalTax };
+  const loadInvoice = (inv: Invoice) => {
+    setInvoiceData(inv);
+    setMode('create');
+  };
+
+  const deleteInvoice = (id: string) => {
+    if (confirm('Delete this invoice? Note: This does not remove the Voucher entry automatically.')) {
+      setData(prev => ({ ...prev, invoices: prev.invoices.filter(i => i.id !== id) }));
+    }
+  };
+
+  if (mode === 'history') {
+    return (
+      <div className="p-8 bg-gray-100 min-h-full">
+         <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-800">Invoice History</h2>
+            <button onClick={() => setMode('create')} className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">
+               Create New Invoice
+            </button>
+         </div>
+         <div className="bg-white rounded-xl shadow overflow-hidden">
+           <table className="w-full text-left text-sm">
+             <thead className="bg-gray-50 border-b">
+               <tr>
+                 <th className="p-4">Date</th>
+                 <th className="p-4">Invoice No</th>
+                 <th className="p-4">Customer</th>
+                 <th className="p-4 text-right">Amount</th>
+                 <th className="p-4 text-center">Action</th>
+               </tr>
+             </thead>
+             <tbody>
+               {(data.invoices || []).map(inv => (
+                 <tr key={inv.id} className="border-b hover:bg-gray-50">
+                   <td className="p-4">{inv.date}</td>
+                   <td className="p-4 font-mono">{inv.invoiceNo}</td>
+                   <td className="p-4">{inv.customerName}</td>
+                   <td className="p-4 text-right font-bold">{formatCurrency(inv.grandTotal)}</td>
+                   <td className="p-4 text-center flex justify-center gap-2">
+                     <button onClick={() => loadInvoice(inv)} className="text-blue-600 hover:bg-blue-50 p-2 rounded"><Eye size={16}/></button>
+                     <button onClick={() => deleteInvoice(inv.id)} className="text-red-600 hover:bg-red-50 p-2 rounded"><Trash2 size={16}/></button>
+                   </td>
+                 </tr>
+               ))}
+               {(!data.invoices || data.invoices.length === 0) && (
+                 <tr><td colSpan={5} className="p-8 text-center text-gray-500">No saved invoices found.</td></tr>
+               )}
+             </tbody>
+           </table>
+         </div>
+      </div>
+    )
   }
-
-  const { subtotal, totalTax, grandTotal } = calculateTotals();
 
   return (
     <div className="p-8 bg-gray-200 min-h-full overflow-auto">
       <div className="flex justify-between mb-6 print:hidden max-w-4xl mx-auto">
-         <h2 className="text-2xl font-bold text-gray-800">GST Invoice Generator</h2>
+         <div className="flex items-center gap-4">
+             <h2 className="text-2xl font-bold text-gray-800">GST Invoice</h2>
+             <button onClick={() => setMode('history')} className="text-sm text-blue-600 underline flex items-center gap-1">
+                <History size={14} /> View History
+             </button>
+         </div>
          <div className="flex gap-3">
+            <button onClick={saveAndPost} className="bg-orange-600 text-white px-5 py-2 rounded-lg shadow flex items-center gap-2 hover:bg-orange-700 transition">
+              <Save size={18} /> Save & Post
+            </button>
             <button onClick={handlePrint} className="bg-gray-800 text-white px-5 py-2 rounded-lg shadow flex items-center gap-2 hover:bg-gray-900 transition">
-              <Printer size={18} /> Print PDF
+              <Printer size={18} /> Print
             </button>
             <button 
               onClick={() => {
-                const msg = `Dear ${invoiceData.customerName}, invoice ${invoiceData.invoiceNo} for Rs.${grandTotal} generated by NAC Software.`;
+                const msg = `Dear ${invoiceData.customerName}, invoice ${invoiceData.invoiceNo} for Rs.${invoiceData.grandTotal} generated by NAC Software.`;
                 window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
               }}
               className="bg-green-600 text-white px-5 py-2 rounded-lg shadow flex items-center gap-2 hover:bg-green-700 transition"
@@ -768,6 +908,27 @@ const InvoiceView: React.FC<ViewProps> = ({ data }) => {
         <div className="mb-8 bg-gray-50 p-6 rounded-lg border border-gray-100 flex gap-10">
            <div className="flex-1">
               <p className="text-xs text-orange-600 uppercase font-bold mb-2 tracking-wider">Bill To</p>
+              {/* Link to Ledger Dropdown */}
+              <div className="mb-2 print:hidden">
+                <select 
+                  className="w-full border border-gray-300 rounded p-1 text-sm"
+                  value={invoiceData.ledgerId}
+                  onChange={e => {
+                     const selectedLedger = data.ledgers.find(l => l.id === e.target.value);
+                     setInvoiceData({
+                        ...invoiceData, 
+                        ledgerId: e.target.value,
+                        customerName: selectedLedger?.name || invoiceData.customerName,
+                        gst: selectedLedger?.gstNumber || invoiceData.gst
+                     });
+                  }}
+                >
+                  <option value="">-- Select Saved Customer (Optional) --</option>
+                  {data.ledgers.filter(l => l.group === 'Sundry Debtor').map(l => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </div>
               <input 
               className="block w-full bg-transparent border-b border-gray-300 focus:border-orange-500 outline-none mb-2 font-bold text-lg placeholder-gray-300"
               placeholder="Customer Name"
@@ -891,7 +1052,7 @@ const InvoiceView: React.FC<ViewProps> = ({ data }) => {
            <div className="w-1/2 space-y-3">
              <div className="flex justify-between text-sm text-gray-600">
                <span>Subtotal (Taxable Value)</span>
-               <span className="font-mono">{formatCurrency(subtotal)}</span>
+               <span className="font-mono">{formatCurrency(invoiceData.subtotal)}</span>
              </div>
              
              {/* Conditional Tax Display */}
@@ -899,23 +1060,23 @@ const InvoiceView: React.FC<ViewProps> = ({ data }) => {
                <>
                   <div className="flex justify-between text-sm text-gray-600">
                     <span>CGST (Total)</span>
-                    <span className="font-mono">{formatCurrency(totalTax / 2)}</span>
+                    <span className="font-mono">{formatCurrency(invoiceData.totalTax / 2)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-gray-600">
                     <span>SGST (Total)</span>
-                    <span className="font-mono">{formatCurrency(totalTax / 2)}</span>
+                    <span className="font-mono">{formatCurrency(invoiceData.totalTax / 2)}</span>
                   </div>
                </>
              ) : (
                <div className="flex justify-between text-sm text-gray-600">
                   <span>IGST (Total)</span>
-                  <span className="font-mono">{formatCurrency(totalTax)}</span>
+                  <span className="font-mono">{formatCurrency(invoiceData.totalTax)}</span>
                </div>
              )}
 
              <div className="flex justify-between text-2xl font-bold text-gray-900 border-t border-gray-300 pt-4 mt-2">
                <span>Grand Total</span>
-               <span>{formatCurrency(grandTotal)}</span>
+               <span>{formatCurrency(invoiceData.grandTotal)}</span>
              </div>
              <p className="text-xs text-right text-gray-500 mt-1">Amount includes all taxes.</p>
            </div>
@@ -933,6 +1094,11 @@ const InvoiceView: React.FC<ViewProps> = ({ data }) => {
               <p className="text-xs text-gray-400">Authorized Signatory</p>
            </div>
         </div>
+      </div>
+      
+      {/* WhatsApp Warning */}
+      <div className="max-w-4xl mx-auto mt-4 p-3 bg-green-50 text-green-800 text-xs border border-green-200 rounded print:hidden text-center">
+         <b>Note:</b> Web browsers cannot attach PDF files to WhatsApp automatically. Please download/print the PDF first, then manually attach it in the chat.
       </div>
     </div>
   )
