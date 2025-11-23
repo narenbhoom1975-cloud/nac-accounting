@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { 
@@ -26,7 +25,9 @@ import {
   Briefcase,
   ArrowRightLeft,
   History,
-  Eye
+  Eye,
+  CheckCircle2,
+  RefreshCw
 } from 'lucide-react';
 
 // --- Types & Interfaces ---
@@ -1334,7 +1335,7 @@ const LicenseGate = ({
   children, 
   onUnlock 
 }: { 
-  children: React.ReactNode, 
+  children?: React.ReactNode, 
   onUnlock: () => void 
 }) => {
   const [licenseKey, setLicenseKey] = useState('');
@@ -1468,6 +1469,7 @@ const AccountingApp = () => {
   const [data, setData] = useState<AppData>(INITIAL_DATA);
   const [license, setLicense] = useState<License | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
 
   // Load Data
   useEffect(() => {
@@ -1480,7 +1482,10 @@ const AccountingApp = () => {
 
   // Save Data
   useEffect(() => {
+    setSaveStatus('saving');
     localStorage.setItem('nac_data', JSON.stringify(data));
+    const timer = setTimeout(() => setSaveStatus('saved'), 800);
+    return () => clearTimeout(timer);
   }, [data]);
 
   const daysRemaining = useMemo(() => {
@@ -1569,7 +1574,17 @@ const AccountingApp = () => {
               </h2>
            </div>
            <div className="flex items-center gap-6">
-             <div className="text-right hidden md:block">
+             
+             {/* Save Indicator */}
+             <div className="hidden md:flex items-center gap-2 text-xs font-bold uppercase tracking-wider transition-colors duration-300">
+                {saveStatus === 'saved' ? (
+                   <span className="text-green-600 flex items-center gap-1"><CheckCircle2 size={14}/> Data Saved</span>
+                ) : (
+                   <span className="text-orange-500 flex items-center gap-1"><RefreshCw size={14} className="animate-spin"/> Saving...</span>
+                )}
+             </div>
+
+             <div className="text-right hidden md:block border-l pl-6 border-gray-200">
                <p className="text-sm font-bold text-gray-800">{data.companyName}</p>
                <p className="text-xs text-gray-500">FY 2024-2025</p>
              </div>
