@@ -23,11 +23,12 @@ import {
   Database,
   ShieldCheck,
   Briefcase,
-  ArrowRightLeft,
   History,
   Eye,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  FilePlus2,
+  AlertTriangle
 } from 'lucide-react';
 
 // --- Types & Interfaces ---
@@ -677,8 +678,7 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
      gst: '',
      invoiceNo: `INV-${Math.floor(Math.random() * 1000)}`,
      items: [
-       { desc: 'Dell Inspiron 15 Laptop', hsn: '8471', qty: 1, rate: 45000, gstRate: 18 },
-       { desc: 'Logitech Wireless Mouse', hsn: '8471', qty: 2, rate: 650, gstRate: 18 }
+       { desc: 'Item Description', hsn: '0000', qty: 1, rate: 0, gstRate: 18 }
       ],
      date: new Date().toISOString().split('T')[0],
      taxType: 'local',
@@ -701,6 +701,23 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
     setInvoiceData(prev => ({...prev, subtotal: sub, totalTax: tax, grandTotal: sub + tax}));
   }, [invoiceData.items, invoiceData.taxType]);
 
+  const handleNew = () => {
+      setInvoiceData({
+        id: generateId(),
+        customerName: '',
+        customerAddress: '',
+        gst: '',
+        invoiceNo: `INV-${Math.floor(Math.random() * 1000)}`,
+        items: [{ desc: '', hsn: '', qty: 1, rate: 0, gstRate: 18 }],
+        date: new Date().toISOString().split('T')[0],
+        taxType: 'local',
+        ledgerId: '',
+        subtotal: 0,
+        totalTax: 0,
+        grandTotal: 0
+      });
+  }
+
   const addItem = () => {
       setInvoiceData({...invoiceData, items: [...invoiceData.items, { desc: '', hsn: '', qty: 1, rate: 0, gstRate: 18 }]});
   }
@@ -715,22 +732,42 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
     window.print();
   };
 
+  const deleteCurrentInvoice = () => {
+    if (confirm('Delete this invoice from records?')) {
+       setData(prev => ({ ...prev, invoices: prev.invoices.filter(i => i.id !== invoiceData.id) }));
+       handleNew(); // Reset form
+       alert('Invoice Deleted');
+    }
+  }
+
   const saveAndPost = () => {
     // 1. Validate
     if (!invoiceData.customerName) { alert('Please enter Customer Name'); return; }
     
-    // 2. Add to Invoices List
-    const newInvoices = [...(data.invoices || []), invoiceData];
+    // 2. Check if ID exists (Update vs Create)
+    const existingIndex = data.invoices.findIndex(i => i.id === invoiceData.id);
+    
+    let newInvoices = [...data.invoices];
+    
+    if (existingIndex >= 0) {
+        // Update Existing
+        newInvoices[existingIndex] = invoiceData;
+    } else {
+        // Create New
+        newInvoices.push(invoiceData);
+    }
     
     // 3. Post to Accounting (Voucher)
-    // If ledgerId is selected, use it. If not, use a generic "Sales Account" (ID 3) or "Cash" (ID 1). 
-    // Here we default to "Sales Account" to record the income, but normally we debit Party/Cash.
-    // Logic: Debit Party (ledgerId) / Credit Sales.
-    // The Voucher system here is simplified single-line.
-    const voucherLedgerId = invoiceData.ledgerId || '1'; // Default to Cash Account if no party selected
+    // Logic: Find existing voucher with same Invoice No and update, OR create new.
+    // Simplification: We will update vouchers based on Invoice Number matching
+    
+    const voucherLedgerId = invoiceData.ledgerId || '1'; // Default to Cash Account
+    
+    const existingVoucherIndex = data.vouchers.findIndex(v => v.invoiceNumber === invoiceData.invoiceNo);
+    let newVouchers = [...data.vouchers];
 
-    const newVoucher: Voucher = {
-      id: generateId(),
+    const voucherPayload: Voucher = {
+      id: existingVoucherIndex >= 0 ? data.vouchers[existingVoucherIndex].id : generateId(),
       date: invoiceData.date,
       type: 'Sales',
       ledgerId: voucherLedgerId,
@@ -739,28 +776,21 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
       invoiceNumber: invoiceData.invoiceNo
     };
 
+    if (existingVoucherIndex >= 0) {
+        newVouchers[existingVoucherIndex] = voucherPayload;
+    } else {
+        newVouchers.push(voucherPayload);
+    }
+
     setData(prev => ({
       ...prev,
       invoices: newInvoices,
-      vouchers: [...prev.vouchers, newVoucher]
+      vouchers: newVouchers
     }));
 
-    alert('Invoice Saved and Posted to Day Book!');
-    // Reset
-    setInvoiceData({
-      id: generateId(),
-      customerName: '',
-      customerAddress: '',
-      gst: '',
-      invoiceNo: `INV-${Math.floor(Math.random() * 1000)}`,
-      items: [{ desc: '', hsn: '', qty: 1, rate: 0, gstRate: 18 }],
-      date: new Date().toISOString().split('T')[0],
-      taxType: 'local',
-      ledgerId: '',
-      subtotal: 0,
-      totalTax: 0,
-      grandTotal: 0
-    });
+    alert(existingIndex >= 0 ? 'Invoice Updated!' : 'Invoice Saved and Posted!');
+    
+    if (existingIndex < 0) handleNew(); // Clear if it was a new invoice
   };
 
   const loadInvoice = (inv: Invoice) => {
@@ -769,7 +799,7 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
   };
 
   const deleteInvoice = (id: string) => {
-    if (confirm('Delete this invoice? Note: This does not remove the Voucher entry automatically.')) {
+    if (confirm('Delete this invoice?')) {
       setData(prev => ({ ...prev, invoices: prev.invoices.filter(i => i.id !== id) }));
     }
   };
@@ -780,7 +810,7 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
          <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-800">Invoice History</h2>
             <button onClick={() => setMode('create')} className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">
-               Create New Invoice
+               Back to Generator
             </button>
          </div>
          <div className="bg-white rounded-xl shadow overflow-hidden">
@@ -795,7 +825,7 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
                </tr>
              </thead>
              <tbody>
-               {(data.invoices || []).map(inv => (
+               {(data.invoices || []).slice().reverse().map(inv => (
                  <tr key={inv.id} className="border-b hover:bg-gray-50">
                    <td className="p-4">{inv.date}</td>
                    <td className="p-4 font-mono">{inv.invoiceNo}</td>
@@ -817,6 +847,9 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
     )
   }
 
+  // Check if we are editing an existing invoice (id exists in data)
+  const isEditing = data.invoices.some(i => i.id === invoiceData.id);
+
   return (
     <div className="p-8 bg-gray-200 min-h-full overflow-auto">
       <div className="flex justify-between mb-6 print:hidden max-w-4xl mx-auto">
@@ -827,8 +860,18 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
              </button>
          </div>
          <div className="flex gap-3">
+            <button onClick={handleNew} className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg shadow flex items-center gap-2 hover:bg-gray-50 transition">
+              <FilePlus2 size={18} /> New
+            </button>
+            
+            {isEditing && (
+                 <button onClick={deleteCurrentInvoice} className="bg-red-100 text-red-700 border border-red-200 px-4 py-2 rounded-lg shadow flex items-center gap-2 hover:bg-red-200 transition">
+                    <Trash2 size={18} /> Delete
+                 </button>
+            )}
+
             <button onClick={saveAndPost} className="bg-orange-600 text-white px-5 py-2 rounded-lg shadow flex items-center gap-2 hover:bg-orange-700 transition">
-              <Save size={18} /> Save & Post
+              <Save size={18} /> {isEditing ? 'Update' : 'Save & Post'}
             </button>
             <button onClick={handlePrint} className="bg-gray-800 text-white px-5 py-2 rounded-lg shadow flex items-center gap-2 hover:bg-gray-900 transition">
               <Printer size={18} /> Print
@@ -1150,6 +1193,13 @@ const AdminView: React.FC<ViewProps> = ({ data, setData, license }) => {
     reader.readAsText(file);
   };
 
+  const handleFactoryReset = () => {
+      if (confirm('CRITICAL WARNING: This will DELETE ALL DATA (Ledgers, Vouchers, Invoices). Use this only if you want a fresh start. Are you sure?')) {
+          localStorage.removeItem('nac_data');
+          window.location.reload();
+      }
+  }
+
   return (
     <div className="p-8">
       <h2 className="text-2xl font-bold text-gray-800 mb-6">System Settings</h2>
@@ -1221,7 +1271,7 @@ const AdminView: React.FC<ViewProps> = ({ data, setData, license }) => {
                     </div>
                     <div>
                         <h3 className="font-bold text-gray-800 text-lg">Data Disaster Recovery</h3>
-                        <p className="text-xs text-gray-500">Backup or Restore your data</p>
+                        <p className="text-xs text-gray-500">Backup, Restore or Wipe data</p>
                     </div>
                 </div>
 
@@ -1249,8 +1299,16 @@ const AdminView: React.FC<ViewProps> = ({ data, setData, license }) => {
                       />
                     </button>
                 </div>
-                <p className="text-xs text-red-400 mt-3 text-center">
-                  * Restoring data will overwrite all current entries.
+
+                <button 
+                   onClick={handleFactoryReset}
+                   className="w-full mt-6 bg-red-50 hover:bg-red-100 text-red-600 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition border border-red-200"
+                >
+                    <AlertTriangle size={18}/> Factory Reset (Wipe All Data)
+                </button>
+
+                <p className="text-xs text-gray-400 mt-3 text-center">
+                  * Use "Factory Reset" if you see data from previous sessions and want a fresh start.
                 </p>
             </div>
           </div>
