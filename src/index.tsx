@@ -100,28 +100,18 @@ interface AppData {
 
 const INITIAL_DATA: AppData = {
   ledgers: [
-    { id: '1', name: 'Cash Account', group: 'Cash', openingBalance: 50000 },
-    { id: '2', name: 'HDFC Bank', group: 'Bank', openingBalance: 150000 },
-    { id: '3', name: 'Sales Account', group: 'Income', openingBalance: 0 },
-    { id: '4', name: 'Purchase Account', group: 'Expense', openingBalance: 0 },
-    { id: '5', name: 'Ramesh Traders', group: 'Sundry Debtor', gstNumber: '27ABCDE1234F1Z5', openingBalance: 0 },
-    { id: '6', name: 'Tech Solutions Ltd', group: 'Sundry Creditor', gstNumber: '27XYZAB5678L1Z2', openingBalance: 0 },
-    { id: '7', name: 'Office Rent', group: 'Expense', openingBalance: 0 },
-    { id: '8', name: 'Electricity Bill', group: 'Expense', openingBalance: 0 },
+    { id: '1', name: 'Cash Account', group: 'Cash', openingBalance: 0 },
+    { id: '2', name: 'Sales Account', group: 'Income', openingBalance: 0 },
+    { id: '3', name: 'Purchase Account', group: 'Expense', openingBalance: 0 },
   ],
-  vouchers: [
-    { id: 'V001', date: '2024-04-01', type: 'Receipt', ledgerId: '1', amount: 50000, narration: 'Capital Introduction' },
-    { id: 'V002', date: '2024-04-02', type: 'Purchase', ledgerId: '6', amount: 25000, narration: 'Purchased computer parts', invoiceNumber: 'INV-99' },
-    { id: 'V003', date: '2024-04-05', type: 'Sales', ledgerId: '5', amount: 45000, narration: 'Sold 5 Laptops', invoiceNumber: 'NAC-001' },
-    { id: 'V004', date: '2024-04-06', type: 'Payment', ledgerId: '7', amount: 12000, narration: 'Office Rent Paid via Cash' },
-  ],
+  vouchers: [],
   invoices: [],
-  companyName: 'My Business Name',
-  companyAddress: 'Shop No 1, Market Road, Mumbai',
-  companyGst: '27AAAAA0000A1Z5',
-  companyPhone: '9876543210',
-  companyEmail: 'support@mybusiness.com',
-  termsAndConditions: "1. Goods once sold will not be taken back.\n2. Interest @18% p.a. will be charged if payment is not made within due date.\n3. Subject to Mumbai Jurisdiction."
+  companyName: 'Your Company Name',
+  companyAddress: '',
+  companyGst: '',
+  companyPhone: '',
+  companyEmail: '',
+  termsAndConditions: "1. Goods once sold will not be taken back.\n2. Interest @18% p.a. will be charged if payment is not made within due date.\n3. Subject to Jurisdiction."
 };
 
 // --- Helper Functions ---
