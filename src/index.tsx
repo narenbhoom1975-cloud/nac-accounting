@@ -24,12 +24,17 @@ import {
   ShieldCheck,
   Briefcase,
   History,
-  Eye,
+  Pencil,
   CheckCircle2,
   RefreshCw,
   FilePlus2,
-  AlertTriangle
+  AlertTriangle,
+  X
 } from 'lucide-react';
+
+// --- CONFIGURATION ---
+const DATA_KEY = 'nac_accounting_db_v1'; // Changed key to force fresh start for everyone
+const LICENSE_KEY_STORAGE = 'nac_license_v1';
 
 // --- Types & Interfaces ---
 
@@ -758,11 +763,7 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
     }
     
     // 3. Post to Accounting (Voucher)
-    // Logic: Find existing voucher with same Invoice No and update, OR create new.
-    // Simplification: We will update vouchers based on Invoice Number matching
-    
     const voucherLedgerId = invoiceData.ledgerId || '1'; // Default to Cash Account
-    
     const existingVoucherIndex = data.vouchers.findIndex(v => v.invoiceNumber === invoiceData.invoiceNo);
     let newVouchers = [...data.vouchers];
 
@@ -789,8 +790,7 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
     }));
 
     alert(existingIndex >= 0 ? 'Invoice Updated!' : 'Invoice Saved and Posted!');
-    
-    if (existingIndex < 0) handleNew(); // Clear if it was a new invoice
+    // Do not reset form if updating, so user can see changes
   };
 
   const loadInvoice = (inv: Invoice) => {
@@ -809,8 +809,8 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
       <div className="p-8 bg-gray-100 min-h-full">
          <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-800">Invoice History</h2>
-            <button onClick={() => setMode('create')} className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">
-               Back to Generator
+            <button onClick={() => setMode('create')} className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 flex items-center gap-2">
+               <FilePlus2 size={18} /> Back to Generator
             </button>
          </div>
          <div className="bg-white rounded-xl shadow overflow-hidden">
@@ -832,8 +832,12 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
                    <td className="p-4">{inv.customerName}</td>
                    <td className="p-4 text-right font-bold">{formatCurrency(inv.grandTotal)}</td>
                    <td className="p-4 text-center flex justify-center gap-2">
-                     <button onClick={() => loadInvoice(inv)} className="text-blue-600 hover:bg-blue-50 p-2 rounded"><Eye size={16}/></button>
-                     <button onClick={() => deleteInvoice(inv.id)} className="text-red-600 hover:bg-red-50 p-2 rounded"><Trash2 size={16}/></button>
+                     <button onClick={() => loadInvoice(inv)} className="text-blue-600 hover:bg-blue-50 p-2 rounded flex items-center gap-1 border border-blue-200">
+                        <Pencil size={16}/> Edit
+                     </button>
+                     <button onClick={() => deleteInvoice(inv.id)} className="text-red-600 hover:bg-red-50 p-2 rounded flex items-center gap-1 border border-red-200">
+                        <Trash2 size={16}/> Delete
+                     </button>
                    </td>
                  </tr>
                ))}
@@ -852,16 +856,17 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
 
   return (
     <div className="p-8 bg-gray-200 min-h-full overflow-auto">
-      <div className="flex justify-between mb-6 print:hidden max-w-4xl mx-auto">
+      <div className="flex justify-between mb-6 print:hidden max-w-4xl mx-auto items-center">
          <div className="flex items-center gap-4">
              <h2 className="text-2xl font-bold text-gray-800">GST Invoice</h2>
-             <button onClick={() => setMode('history')} className="text-sm text-blue-600 underline flex items-center gap-1">
+             <button onClick={() => setMode('history')} className="text-sm text-blue-600 font-medium bg-blue-50 px-3 py-1 rounded hover:bg-blue-100 flex items-center gap-1">
                 <History size={14} /> View History
              </button>
          </div>
          <div className="flex gap-3">
+            {/* Action Buttons */}
             <button onClick={handleNew} className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg shadow flex items-center gap-2 hover:bg-gray-50 transition">
-              <FilePlus2 size={18} /> New
+              <RefreshCw size={18} /> Reset / New
             </button>
             
             {isEditing && (
@@ -870,8 +875,8 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
                  </button>
             )}
 
-            <button onClick={saveAndPost} className="bg-orange-600 text-white px-5 py-2 rounded-lg shadow flex items-center gap-2 hover:bg-orange-700 transition">
-              <Save size={18} /> {isEditing ? 'Update' : 'Save & Post'}
+            <button onClick={saveAndPost} className="bg-orange-600 text-white px-5 py-2 rounded-lg shadow flex items-center gap-2 hover:bg-orange-700 transition font-bold">
+              <Save size={18} /> {isEditing ? 'Update Invoice' : 'Save & Post'}
             </button>
             <button onClick={handlePrint} className="bg-gray-800 text-white px-5 py-2 rounded-lg shadow flex items-center gap-2 hover:bg-gray-900 transition">
               <Printer size={18} /> Print
@@ -889,7 +894,8 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
       </div>
 
       {/* Invoice Paper UI */}
-      <div className="bg-white p-10 shadow-2xl max-w-4xl mx-auto print:shadow-none print:w-full print:max-w-none" id="invoice-area">
+      <div className="bg-white p-10 shadow-2xl max-w-4xl mx-auto print:shadow-none print:w-full print:max-w-none relative" id="invoice-area">
+        {isEditing && <div className="absolute top-0 right-0 bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-bl-lg print:hidden">EDITING MODE</div>}
         {/* Header */}
         <div className="flex justify-between border-b-2 border-orange-500 pb-6 mb-8">
            <div className="flex items-start gap-4">
@@ -909,11 +915,20 @@ const InvoiceView: React.FC<ViewProps> = ({ data, setData }) => {
               <div className="mt-4 space-y-1">
                   <div className="flex justify-end gap-4">
                       <span className="text-gray-500 font-bold">Invoice No:</span>
-                      <span className="font-mono font-bold">{invoiceData.invoiceNo}</span>
+                      <input 
+                        className="font-mono font-bold text-right w-32 outline-none border-b border-transparent focus:border-orange-500" 
+                        value={invoiceData.invoiceNo}
+                        onChange={e => setInvoiceData({...invoiceData, invoiceNo: e.target.value})}
+                      />
                   </div>
                   <div className="flex justify-end gap-4">
                       <span className="text-gray-500 font-bold">Date:</span>
-                      <span className="font-mono">{invoiceData.date}</span>
+                      <input 
+                        type="date"
+                        className="font-mono text-right outline-none border-b border-transparent focus:border-orange-500" 
+                        value={invoiceData.date}
+                        onChange={e => setInvoiceData({...invoiceData, date: e.target.value})}
+                      />
                   </div>
                   {/* Tax Type Toggle (Hidden in Print) */}
                   <div className="flex justify-end gap-2 pt-2 print:hidden">
@@ -1179,7 +1194,7 @@ const AdminView: React.FC<ViewProps> = ({ data, setData, license }) => {
         const json = JSON.parse(event.target?.result as string);
         if (json.companyName && json.vouchers && json.ledgers) {
           if (confirm('WARNING: This will overwrite all current data with the backup file. Are you sure?')) {
-            localStorage.setItem('nac_data', JSON.stringify(json));
+            localStorage.setItem(DATA_KEY, JSON.stringify(json));
             alert('Data Restored Successfully! The app will now reload.');
             window.location.reload();
           }
@@ -1195,7 +1210,7 @@ const AdminView: React.FC<ViewProps> = ({ data, setData, license }) => {
 
   const handleFactoryReset = () => {
       if (confirm('CRITICAL WARNING: This will DELETE ALL DATA (Ledgers, Vouchers, Invoices). Use this only if you want a fresh start. Are you sure?')) {
-          localStorage.removeItem('nac_data');
+          localStorage.removeItem(DATA_KEY);
           window.location.reload();
       }
   }
@@ -1314,7 +1329,8 @@ const AdminView: React.FC<ViewProps> = ({ data, setData, license }) => {
           </div>
 
           {/* 2. License Generator (Visible ONLY to MASTER ADMIN) */}
-          {isMasterAdmin ? (
+          {/* COMPLETELY HIDDEN FOR CLIENTS - NO 'Restricted Area' BOX */}
+          {isMasterAdmin && (
             <div className="bg-slate-900 text-white p-8 rounded-xl shadow-lg border border-gray-800 h-fit">
                 <div className="flex items-center gap-3 mb-6">
                     <div className="bg-orange-600 p-2 rounded-lg text-white">
@@ -1365,12 +1381,6 @@ const AdminView: React.FC<ViewProps> = ({ data, setData, license }) => {
                     </div>
                 )}
             </div>
-          ) : (
-            <div className="bg-gray-50 p-8 rounded-xl border border-dashed border-gray-300 h-fit flex flex-col items-center justify-center text-center text-gray-400">
-               <ShieldCheck size={48} className="mb-4 opacity-20" />
-               <h3 className="font-bold">Restricted Area</h3>
-               <p className="text-sm">Only New Age Computers Admin can access the License Generator.</p>
-            </div>
           )}
       </div>
     </div>
@@ -1391,7 +1401,7 @@ const LicenseGate = ({
   const [storedLicense, setStoredLicense] = useState<License | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('nac_license');
+    const saved = localStorage.getItem(LICENSE_KEY_STORAGE);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -1402,10 +1412,10 @@ const LicenseGate = ({
           onUnlock();
         } else {
           setError('License Expired. Please contact New Age Computers: 9920524542');
-          localStorage.removeItem('nac_license');
+          localStorage.removeItem(LICENSE_KEY_STORAGE);
         }
       } catch (e) {
-        localStorage.removeItem('nac_license');
+        localStorage.removeItem(LICENSE_KEY_STORAGE);
       }
     }
   }, []);
@@ -1424,7 +1434,7 @@ const LicenseGate = ({
         expiryDate: expiry.toISOString(),
         isActive: true
       };
-      localStorage.setItem('nac_license', JSON.stringify(newLicense));
+      localStorage.setItem(LICENSE_KEY_STORAGE, JSON.stringify(newLicense));
       setStoredLicense(newLicense);
       onUnlock();
       return;
@@ -1456,7 +1466,7 @@ const LicenseGate = ({
       isActive: true
     };
 
-    localStorage.setItem('nac_license', JSON.stringify(newLicense));
+    localStorage.setItem(LICENSE_KEY_STORAGE, JSON.stringify(newLicense));
     setStoredLicense(newLicense);
     onUnlock();
   };
@@ -1521,17 +1531,17 @@ const AccountingApp = () => {
 
   // Load Data
   useEffect(() => {
-    const savedData = localStorage.getItem('nac_data');
+    const savedData = localStorage.getItem(DATA_KEY);
     if (savedData) setData(JSON.parse(savedData));
     
-    const savedLicense = localStorage.getItem('nac_license');
+    const savedLicense = localStorage.getItem(LICENSE_KEY_STORAGE);
     if (savedLicense) setLicense(JSON.parse(savedLicense));
   }, []);
 
   // Save Data
   useEffect(() => {
     setSaveStatus('saving');
-    localStorage.setItem('nac_data', JSON.stringify(data));
+    localStorage.setItem(DATA_KEY, JSON.stringify(data));
     const timer = setTimeout(() => setSaveStatus('saved'), 800);
     return () => clearTimeout(timer);
   }, [data]);
@@ -1545,7 +1555,7 @@ const AccountingApp = () => {
   }, [license]);
 
   const logout = () => {
-      localStorage.removeItem('nac_license');
+      localStorage.removeItem(LICENSE_KEY_STORAGE);
       window.location.reload();
   }
 
